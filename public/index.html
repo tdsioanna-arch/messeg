@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Мой Мессенджер</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        #app {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        /* Форма входа */
+        #login-section {
+            padding: 40px;
+            text-align: center;
+        }
+        
+        #login-section h2 {
+            margin-bottom: 30px;
+            color: #333;
+        }
+        
+        #login-section input {
+            width: 100%;
+            max-width: 300px;
+            padding: 12px;
+            margin: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        
+        #login-section button {
+            padding: 12px 30px;
+            margin: 10px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            background: #667eea;
+            color: white;
+            transition: transform 0.2s;
+        }
+        
+        #login-section button:hover {
+            transform: scale(1.05);
+        }
+        
+        /* Чат */
+        #chat-section {
+            display: flex;
+            height: 80vh;
+        }
+        
+        .sidebar {
+            width: 250px;
+            background: #f8f9fa;
+            border-right: 1px solid #e0e0e0;
+            padding: 20px;
+        }
+        
+        .sidebar h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        .sidebar input {
+            width: 100%;
+            padding: 8px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        
+        .sidebar button {
+            width: 100%;
+            padding: 8px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        
+        .current-chat {
+            margin-top: 15px;
+            padding: 10px;
+            background: #e3f2fd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        
+        .message {
+            margin: 10px 0;
+            padding: 10px 15px;
+            border-radius: 10px;
+            max-width: 70%;
+            word-wrap: break-word;
+        }
+        
+        .my-message {
+            background: #667eea;
+            color: white;
+            margin-left: auto;
+            text-align: right;
+        }
+        
+        .other-message {
+            background: #f1f3f4;
+            color: #333;
+        }
+        
+        .message strong {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+        
+        .chat-form {
+            padding: 20px;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+        }
+        
+        .chat-form input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        
+        .chat-form button {
+            padding: 10px 20px;
+            margin-left: 10px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        
+        .user-info {
+            padding: 15px;
+            background: #667eea;
+            color: white;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="container">
+            <!-- Форма входа -->
+            <div id="login-section">
+                <h2>📱 Вход в мессенджер</h2>
+                <input type="text" id="username" placeholder="Логин">
+                <input type="password" id="password" placeholder="Пароль">
+                <br>
+                <button onclick="login()">Войти</button>
+                <button onclick="register()">Зарегистрироваться</button>
+            </div>
+
+            <!-- Чат -->
+            <div id="chat-section" style="display: none;">
+                <div class="sidebar">
+                    <h3>💬 Собеседник</h3>
+                    <input type="text" id="recipient" placeholder="Имя пользователя">
+                    <button onclick="setRecipient()">Выбрать</button>
+                    <div class="current-chat">
+                        <strong>Чат с:</strong> <span id="current-chat">никем</span>
+                    </div>
+                </div>
+                
+                <div class="chat-area">
+                    <div class="user-info">
+                        Добро пожаловать, <span id="current-user"></span>
+                    </div>
+                    <div class="messages" id="messages"></div>
+                    <form class="chat-form" onsubmit="sendMessage(event)">
+                        <input type="text" id="message-input" placeholder="Введите сообщение..." autocomplete="off">
+                        <button type="submit">📤 Отправить</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Определяем адрес сервера (автоматически подставляется текущий адрес)
+        const serverUrl = window.location.origin;
+        const socket = io(serverUrl);
+        
+        let currentUser = null;
+        let currentRecipient = null;
+
+        async function register() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            if (!username || !password) {
+                alert('Введите логин и пароль');
+                return;
+            }
+            
+            const response = await fetch('/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                alert('Регистрация успешна! Теперь войдите');
+            } else {
+                alert('Ошибка: ' + data.error);
+            }
+        }
+
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            if (!username || !password) {
+                alert('Введите логин и пароль');
+                return;
+            }
+            
+            const response = await fetch('/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                currentUser = username;
+                document.getElementById('current-user').innerText = currentUser;
+                document.getElementById('login-section').style.display = 'none';
+                document.getElementById('chat-section').style.display = 'flex';
+                
+                socket.emit('join', currentUser);
+            } else {
+                alert('Ошибка входа: неверный логин или пароль');
+            }
+        }
+
+        function setRecipient() {
+            const recip = document.getElementById('recipient').value;
+            if (recip && recip !== currentUser) {
+                currentRecipient = recip;
+                document.getElementById('current-chat').innerText = currentRecipient;
+                document.getElementById('messages').innerHTML = '';
+                
+                socket.emit('get history', { withUser: currentRecipient, currentUser: currentUser });
+            } else if (recip === currentUser) {
+                alert('Нельзя писать самому себе');
+            }
+        }
+
+        function sendMessage(event) {
+            event.preventDefault();
+            const message = document.getElementById('message-input').value;
+            
+            if (message && currentRecipient) {
+                socket.emit('private message', {
+                    to: currentRecipient,
+                    from: currentUser,
+                    message: message
+                });
+                document.getElementById('message-input').value = '';
+            } else if (!currentRecipient) {
+                alert('Сначала выберите собеседника');
+            }
+        }
+
+        socket.on('message history', (data) => {
+            const messagesDiv = document.getElementById('messages');
+            messagesDiv.innerHTML = '';
+            data.messages.forEach(msg => {
+                displayMessage(msg.sender, msg.message, msg.sender === currentUser);
+            });
+        });
+
+        socket.on('private message', (data) => {
+            if (data.from === currentRecipient) {
+                displayMessage(data.from, data.message, false);
+            } else {
+                if (confirm(`Новое сообщение от ${data.from}. Перейти в чат?`)) {
+                    currentRecipient = data.from;
+                    document.getElementById('recipient').value = data.from;
+                    document.getElementById('current-chat').innerText = data.from;
+                    document.getElementById('messages').innerHTML = '';
+                    socket.emit('get history', { withUser: currentRecipient, currentUser: currentUser });
+                    displayMessage(data.from, data.message, false);
+                }
+            }
+        });
+
+        socket.on('message sent', (data) => {
+            if (data.to === currentRecipient) {
+                displayMessage(currentUser, data.message, true);
+            }
+        });
+
+        function displayMessage(sender, text, isMe) {
+            const messagesDiv = document.getElementById('messages');
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message');
+            if (isMe) {
+                messageElement.classList.add('my-message');
+                messageElement.innerHTML = `<strong>Вы:</strong><br>${text}`;
+            } else {
+                messageElement.classList.add('other-message');
+                messageElement.innerHTML = `<strong>${sender}:</strong><br>${text}`;
+            }
+            messagesDiv.appendChild(messageElement);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+    </script>
+</body>
+</html>
