@@ -73,15 +73,21 @@
         }
         
         .sidebar {
-            width: 250px;
+            width: 280px;
             background: #f8f9fa;
             border-right: 1px solid #e0e0e0;
             padding: 20px;
+            overflow-y: auto;
         }
         
         .sidebar h3 {
             margin-bottom: 15px;
             color: #333;
+        }
+        
+        .sidebar h4 {
+            margin: 15px 0 10px 0;
+            color: #555;
         }
         
         .sidebar input {
@@ -100,6 +106,7 @@
             border: none;
             border-radius: 5px;
             cursor: pointer;
+            margin-top: 5px;
         }
         
         .current-chat {
@@ -120,31 +127,6 @@
             flex: 1;
             overflow-y: auto;
             padding: 20px;
-        }
-        
-        .message {
-            margin: 10px 0;
-            padding: 10px 15px;
-            border-radius: 10px;
-            max-width: 70%;
-            word-wrap: break-word;
-        }
-        
-        .my-message {
-            background: #667eea;
-            color: white;
-            margin-left: auto;
-            text-align: right;
-        }
-        
-        .other-message {
-            background: #f1f3f4;
-            color: #333;
-        }
-        
-        .message strong {
-            font-size: 12px;
-            opacity: 0.8;
         }
         
         .chat-form {
@@ -176,71 +158,86 @@
             background: #667eea;
             color: white;
             text-align: center;
-/* Аватарки */
-.message-wrapper {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    margin: 10px 0;
-}
-
-.avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    font-size: 18px;
-    color: white;
-    flex-shrink: 0;
-}
-
-.avatar-small {
-    width: 32px;
-    height: 32px;
-    font-size: 14px;
-}
-
-.message-content {
-    flex: 1;
-    max-width: 70%;
-}
-
-.my-message .message-content {
-    margin-left: auto;
-}
-
-.message-bubble {
-    padding: 10px 15px;
-    border-radius: 10px;
-    word-wrap: break-word;
-}
-
-.my-message .message-bubble {
-    background: #667eea;
-    color: white;
-}
-
-.other-message .message-bubble {
-    background: #f1f3f4;
-    color: #333;
-}
-
-.message-time {
-    font-size: 11px;
-    color: #999;
-    margin-top: 4px;
-    text-align: right;
-}
-
-.message-name {
-    font-size: 12px;
-    font-weight: bold;
-    margin-bottom: 4px;
-    color: #666;
-}
+            font-weight: bold;
+        }
+        
+        /* Аватарки */
+        .message-wrapper {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+            color: white;
+            flex-shrink: 0;
+        }
+        
+        .avatar-small {
+            width: 32px;
+            height: 32px;
+            font-size: 14px;
+        }
+        
+        .message-content {
+            flex: 1;
+            max-width: 70%;
+        }
+        
+        .my-message .message-content {
+            margin-left: auto;
+        }
+        
+        .message-bubble {
+            padding: 10px 15px;
+            border-radius: 10px;
+            word-wrap: break-word;
+        }
+        
+        .my-message .message-bubble {
+            background: #667eea;
+            color: white;
+        }
+        
+        .other-message .message-bubble {
+            background: #f1f3f4;
+            color: #333;
+        }
+        
+        .message-time {
+            font-size: 11px;
+            color: #999;
+            margin-top: 4px;
+            text-align: right;
+        }
+        
+        .message-name {
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 4px;
+            color: #666;
+        }
+        
+        .user-item {
+            padding: 8px;
+            margin: 5px 0;
+            background: #f0f0f0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .user-item:hover {
+            background: #e0e0e0;
         }
     </style>
 </head>
@@ -262,13 +259,13 @@
                 <div class="sidebar">
                     <h3>💬 Собеседник</h3>
                     <input type="text" id="recipient" placeholder="Имя пользователя">
-                    <div style="margin-top: 20px;">
-    <h4>👥 Все пользователи</h4>
-    <div id="users-list" style="max-height: 200px; overflow-y: auto; margin-top: 10px;">
-        <div style="text-align: center; color: #999;">Загрузка...</div>
-    </div>
-</div>
-<button onclick="setRecipient()">Выбрать</button>
+                    <button onclick="setRecipient()">Выбрать</button>
+                    
+                    <h4>👥 Все пользователи</h4>
+                    <div id="users-list" style="max-height: 300px; overflow-y: auto;">
+                        <div style="text-align: center; color: #999;">Загрузка...</div>
+                    </div>
+                    
                     <div class="current-chat">
                         <strong>Чат с:</strong> <span id="current-chat">никем</span>
                     </div>
@@ -289,59 +286,14 @@
     </div>
 
     <script>
-// Получить список всех пользователей
-async function loadUsers() {
-    try {
-        const response = await fetch('/users');
-        const users = await response.json();
-        const usersListDiv = document.getElementById('users-list');
-        
-        if (users.length === 0) {
-            usersListDiv.innerHTML = '<div style="text-align: center; color: #999;">Нет пользователей</div>';
-            return;
-        }
-        
-        usersListDiv.innerHTML = users.map(user => `
-    <div class="user-item" onclick="selectUser('${user.username}')" 
-         style="padding: 8px; margin: 5px 0; background: #f0f0f0; border-radius: 8px; cursor: pointer;">
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <div class="avatar" style="width: 30px; height: 30px; font-size: 14px; 
-                 background: ${getAvatarColor(user.username)};">
-                ${user.username.charAt(0).toUpperCase()}
-            </div>
-            <span>${user.username}</span>
-            ${onlineUsers.includes(user.username) ? '<span style="color: #4caf50; font-size: 12px;"> ●</span>' : ''}
-        </div>
-    </div>
-`).join('');
-    } catch (err) {
-        console.error('Ошибка загрузки пользователей:', err);
-    }
-}
-
-// Функция для цвета аватарки
-function getAvatarColor(username) {
-    const colors = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a'];
-    const index = username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
-    return colors[index];
-}
-
-// Выбрать пользователя для чата
-function selectUser(username) {
-    if (username === currentUser) {
-        alert('Нельзя писать самому себе');
-        return;
-    }
-    document.getElementById('recipient').value = username;
-    setRecipient();
-}
-        // Определяем адрес сервера (автоматически подставляется текущий адрес)
         const serverUrl = window.location.origin;
         const socket = io(serverUrl);
         
         let currentUser = null;
         let currentRecipient = null;
+        let onlineUsers = [];
 
+        // Регистрация
         async function register() {
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
@@ -365,6 +317,7 @@ function selectUser(username) {
             }
         }
 
+        // Вход
         async function login() {
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
@@ -388,24 +341,26 @@ function selectUser(username) {
                 document.getElementById('chat-section').style.display = 'flex';
                 
                 socket.emit('join', currentUser);
+                loadUsers();
             } else {
                 alert('Ошибка входа: неверный логин или пароль');
             }
         }
 
+        // Выбор собеседника
         function setRecipient() {
             const recip = document.getElementById('recipient').value;
             if (recip && recip !== currentUser) {
                 currentRecipient = recip;
                 document.getElementById('current-chat').innerText = currentRecipient;
                 document.getElementById('messages').innerHTML = '';
-                
                 socket.emit('get history', { withUser: currentRecipient, currentUser: currentUser });
             } else if (recip === currentUser) {
                 alert('Нельзя писать самому себе');
             }
         }
 
+        // Отправка сообщения
         function sendMessage(event) {
             event.preventDefault();
             const message = document.getElementById('message-input').value;
@@ -422,96 +377,168 @@ function selectUser(username) {
             }
         }
 
-      socket.on('message history', (data) => {
-    const messagesDiv = document.getElementById('messages');
-    messagesDiv.innerHTML = '';
-    data.messages.forEach(msg => {
-        displayMessage(msg.sender, msg.message, msg.sender === currentUser, msg.timestamp);
-    });
-});
-socket.on('private message', (data) => {
-    if (data.from === currentRecipient) {
-        displayMessage(data.from, data.message, false, data.timestamp);
-    } else {
-        if (confirm(`Новое сообщение от ${data.from}. Перейти в чат?`)) {
-            currentRecipient = data.from;
-            document.getElementById('recipient').value = data.from;
-            document.getElementById('current-chat').innerText = data.from;
-            document.getElementById('messages').innerHTML = '';
-            socket.emit('get history', { withUser: currentRecipient, currentUser: currentUser });
-            displayMessage(data.from, data.message, false, data.timestamp);
+        // Получить список всех пользователей
+        async function loadUsers() {
+            try {
+                const response = await fetch('/users');
+                const users = await response.json();
+                const usersListDiv = document.getElementById('users-list');
+                
+                if (users.length === 0) {
+                    usersListDiv.innerHTML = '<div style="text-align: center; color: #999;">Нет пользователей</div>';
+                    return;
+                }
+                
+                usersListDiv.innerHTML = users.map(user => `
+                    <div class="user-item" onclick="selectUser('${user.username}')">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div class="avatar" style="width: 30px; height: 30px; font-size: 14px; 
+                                 background: ${getAvatarColor(user.username)};">
+                                ${user.username.charAt(0).toUpperCase()}
+                            </div>
+                            <span>${user.username}</span>
+                            ${onlineUsers.includes(user.username) ? '<span style="color: #4caf50; margin-left: auto;">●</span>' : ''}
+                        </div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                console.error('Ошибка загрузки пользователей:', err);
+            }
         }
-    }
-});
+
+        // Функция для цвета аватарки
+        function getAvatarColor(username) {
+            const colors = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a'];
+            const index = username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
+            return colors[index];
+        }
+
+        // Выбрать пользователя для чата
+        function selectUser(username) {
+            if (username === currentUser) {
+                alert('Нельзя писать самому себе');
+                return;
+            }
+            document.getElementById('recipient').value = username;
+            setRecipient();
+        }
+
+        // Обновление онлайн-статусов
+        function updateOnlineStatus() {
+            const userItems = document.querySelectorAll('.user-item');
+            userItems.forEach(item => {
+                const span = item.querySelector('span:first-of-type');
+                const username = span ? span.textContent : '';
+                const dotSpan = item.querySelector('span:last-of-type');
+                if (onlineUsers.includes(username)) {
+                    if (!dotSpan || dotSpan.textContent !== '●') {
+                        const dot = document.createElement('span');
+                        dot.textContent = '●';
+                        dot.style.color = '#4caf50';
+                        dot.style.marginLeft = 'auto';
+                        item.querySelector('div').appendChild(dot);
+                    }
+                } else {
+                    if (dotSpan && dotSpan.textContent === '●') {
+                        dotSpan.remove();
+                    }
+                }
+            });
+        }
+
+        // Сокет события
+        socket.on('message history', (data) => {
+            const messagesDiv = document.getElementById('messages');
+            messagesDiv.innerHTML = '';
+            data.messages.forEach(msg => {
+                displayMessage(msg.sender, msg.message, msg.sender === currentUser, msg.timestamp);
+            });
+        });
+
+        socket.on('private message', (data) => {
+            if (data.from === currentRecipient) {
+                displayMessage(data.from, data.message, false, data.timestamp);
+            } else {
+                if (confirm(`Новое сообщение от ${data.from}. Перейти в чат?`)) {
+                    currentRecipient = data.from;
+                    document.getElementById('recipient').value = data.from;
+                    document.getElementById('current-chat').innerText = data.from;
+                    document.getElementById('messages').innerHTML = '';
+                    socket.emit('get history', { withUser: currentRecipient, currentUser: currentUser });
+                    displayMessage(data.from, data.message, false, data.timestamp);
+                }
+            }
+        });
 
         socket.on('message sent', (data) => {
-    if (data.to === currentRecipient) {
-        displayMessage(currentUser, data.message, true, data.timestamp);
-    }
-});
+            if (data.to === currentRecipient) {
+                displayMessage(currentUser, data.message, true, data.timestamp);
+            }
+        });
 
+        socket.on('online users', (users) => {
+            onlineUsers = users;
+            updateOnlineStatus();
+        });
+
+        // Отображение сообщения
         function displayMessage(sender, text, isMe, timestamp = null) {
-    const messagesDiv = document.getElementById('messages');
-    const messageWrapper = document.createElement('div');
-    messageWrapper.classList.add('message-wrapper');
-    
-    // Форматирование времени
-    let timeStr = '';
-    if (timestamp) {
-        const date = new Date(timestamp);
-        timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } else {
-        timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    }
-    
-    // Цвет для аватарки (на основе имени)
-    const colors = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a'];
-    const colorIndex = sender.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
-    const avatarColor = colors[colorIndex];
-    const firstLetter = sender.charAt(0).toUpperCase();
-    
-    // Аватарка
-    const avatar = document.createElement('div');
-    avatar.className = 'avatar';
-    if (!isMe) avatar.classList.add('avatar-small');
-    avatar.style.backgroundColor = avatarColor;
-    avatar.textContent = firstLetter;
-    
-    // Контент сообщения
-    const messageContent = document.createElement('div');
-    messageContent.className = 'message-content';
-    
-    const messageBubble = document.createElement('div');
-    messageBubble.className = 'message-bubble';
-    messageBubble.innerHTML = text.replace(/\n/g, '<br>');
-    
-    const messageTime = document.createElement('div');
-    messageTime.className = 'message-time';
-    messageTime.textContent = timeStr;
-    
-    const messageName = document.createElement('div');
-    messageName.className = 'message-name';
-    if (!isMe) {
-        messageName.textContent = sender;
-    }
-    
-    messageContent.appendChild(messageName);
-    messageContent.appendChild(messageBubble);
-    messageContent.appendChild(messageTime);
-    
-    // Расположение
-    if (isMe) {
-        messageWrapper.appendChild(messageContent);
-        messageWrapper.appendChild(avatar);
-        messageWrapper.style.justifyContent = 'flex-end';
-    } else {
-        messageWrapper.appendChild(avatar);
-        messageWrapper.appendChild(messageContent);
-    }
-    
-    messagesDiv.appendChild(messageWrapper);
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
-}
+            const messagesDiv = document.getElementById('messages');
+            const messageWrapper = document.createElement('div');
+            messageWrapper.classList.add('message-wrapper');
+            
+            let timeStr = '';
+            if (timestamp) {
+                const date = new Date(timestamp);
+                timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            } else {
+                timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+            
+            const colors = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a'];
+            const colorIndex = sender.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
+            const avatarColor = colors[colorIndex];
+            const firstLetter = sender.charAt(0).toUpperCase();
+            
+            const avatar = document.createElement('div');
+            avatar.className = 'avatar';
+            if (!isMe) avatar.classList.add('avatar-small');
+            avatar.style.backgroundColor = avatarColor;
+            avatar.textContent = firstLetter;
+            
+            const messageContent = document.createElement('div');
+            messageContent.className = 'message-content';
+            
+            const messageBubble = document.createElement('div');
+            messageBubble.className = 'message-bubble';
+            messageBubble.innerHTML = text.replace(/\n/g, '<br>');
+            
+            const messageTime = document.createElement('div');
+            messageTime.className = 'message-time';
+            messageTime.textContent = timeStr;
+            
+            const messageName = document.createElement('div');
+            messageName.className = 'message-name';
+            if (!isMe) {
+                messageName.textContent = sender;
+            }
+            
+            messageContent.appendChild(messageName);
+            messageContent.appendChild(messageBubble);
+            messageContent.appendChild(messageTime);
+            
+            if (isMe) {
+                messageWrapper.appendChild(messageContent);
+                messageWrapper.appendChild(avatar);
+                messageWrapper.style.justifyContent = 'flex-end';
+            } else {
+                messageWrapper.appendChild(avatar);
+                messageWrapper.appendChild(messageContent);
+            }
+            
+            messagesDiv.appendChild(messageWrapper);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
     </script>
 </body>
 </html>
