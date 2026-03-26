@@ -17,13 +17,14 @@ const io = new Server(server, {
     }
 });
 
-let onlineUsers = [];
-
 // Подключение к PostgreSQL
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
 });
+
+// Список онлайн пользователей
+let onlineUsers = [];
 
 // Создание таблиц
 async function initDb() {
@@ -78,22 +79,30 @@ app.post('/login', async (req, res) => {
     }
 });
 
+// Получить список всех пользователей
+app.get('/users', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT username FROM users ORDER BY username');
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Ошибка получения пользователей:', err);
+        res.status(500).json({ error: 'Ошибка сервера' });
+    }
+});
+
 // WebSocket
 io.on('connection', (socket) => {
     console.log('Пользователь подключился');
 
     socket.on('join', (username) => {
-    socket.username = username;
-    console.log(`${username} присоединился`);
-    
-    // Добавляем в список онлайн
-    if (!onlineUsers.includes(username)) {
-        onlineUsers.push(username);
-    }
-    // Отправляем всем обновленный список
-    io.emit('online users', onlineUsers);
-});
-
+        socket.username = username;
+        console.log(`${username} присоединился`);
+        
+        if (!onlineUsers.includes(username)) {
+            onlineUsers.push(username);
+        }
+        io.emit('online users', onlineUsers);
+    });
 
     socket.on('private message', async ({ to, message, from }) => {
         try {
@@ -135,22 +144,12 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
-    console.log('Пользователь отключился');
-    if (socket.username) {
-        onlineUsers = onlineUsers.filter(u => u !== socket.username);
-        io.emit('online users', onlineUsers);
-    }
-});
-
-// Получить список всех пользователей
-app.get('/users', async (req, res) => {
-    try {
-        const result = await pool.query('SELECT username FROM users ORDER BY username');
-        res.json(result.rows);
-    } catch (err) {
-        console.error('Ошибка получения пользователей:', err);
-        res.status(500).json({ error: 'Ошибка сервера' });
-    }
+        console.log('Пользователь отключился');
+        if (socket.username) {
+            onlineUsers = onlineUsers.filter(u => u !== socket.username);
+            io.emit('online users', onlineUsers);
+        }
+    });
 });
 
 const PORT = process.env.PORT || 3000;
