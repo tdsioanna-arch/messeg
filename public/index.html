@@ -543,38 +543,39 @@
         }
 
         async function loadUsers() {
-            try {
-                const response = await fetch('/users');
-                const users = await response.json();
-                const usersListDiv = document.getElementById('users-list');
-                
-                if (users.length === 0) {
-                    usersListDiv.innerHTML = '<div style="text-align: center; color: #999; padding: 20px;">Нет пользователей</div>';
-                    return;
-                }
-                
-                const colors = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a'];
-                
-                usersListDiv.innerHTML = users.map(user => {
-                    const colorIndex = user.username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
-                    const isOnline = onlineUsers.includes(user.username);
-                    return `
-                        <div class="user-item" onclick="selectUser('${user.username}')">
-                            <div class="user-avatar" style="background: ${colors[colorIndex]}">
-                                ${user.username.charAt(0).toUpperCase()}
-                            </div>
-                            <div class="user-info">
-                                <div class="user-name">${user.username}</div>
-                                <div class="user-status ${isOnline ? '' : 'offline'}">${isOnline ? '🟢 Онлайн' : '⚫ Офлайн'}</div>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-            } catch (err) {
-                console.error('Ошибка загрузки пользователей:', err);
-                document.getElementById('users-list').innerHTML = '<div style="text-align: center; color: #999; padding: 20px;">Ошибка загрузки</div>';
-            }
+    try {
+        // Передаем имя текущего пользователя в запрос
+        const response = await fetch(`/users?currentUser=${encodeURIComponent(currentUser)}`);
+        const users = await response.json();
+        const usersListDiv = document.getElementById('users-list');
+        
+        if (users.length === 0) {
+            usersListDiv.innerHTML = '<div style="text-align: center; color: #999; padding: 20px;">Нет активных чатов. Напишите кому-нибудь!</div>';
+            return;
         }
+        
+        const colors = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a'];
+        
+        usersListDiv.innerHTML = users.map(user => {
+            const colorIndex = user.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
+            const isOnline = onlineUsers.includes(user);
+            return `
+                <div class="user-item" onclick="selectUser('${user}')">
+                    <div class="user-avatar" style="background: ${colors[colorIndex]}">
+                        ${user.charAt(0).toUpperCase()}
+                    </div>
+                    <div class="user-info">
+                        <div class="user-name">${user}</div>
+                        <div class="user-status ${isOnline ? '' : 'offline'}">${isOnline ? '🟢 Онлайн' : '⚫ Офлайн'}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } catch (err) {
+        console.error('Ошибка загрузки контактов:', err);
+        document.getElementById('users-list').innerHTML = '<div style="text-align: center; color: #999; padding: 20px;">Ошибка загрузки</div>';
+    }
+}
 
         function getAvatarColor(username) {
             const colors = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a'];
@@ -611,28 +612,30 @@
         });
 
         socket.on('private message', (data) => {
-            if (data.from === currentRecipient) {
-                displayMessage(data.from, data.message, false, data.timestamp);
-            } else {
-                if (confirm(`Новое сообщение от ${data.from}. Перейти в чат?`)) {
-                    currentRecipient = data.from;
-                    document.getElementById('recipient').value = data.from;
-                    document.getElementById('current-chat-name').innerText = data.from;
-                    document.getElementById('messages').innerHTML = '';
-                    document.getElementById('chat-header').style.display = 'flex';
-                    document.getElementById('chat-header-name').innerText = data.from;
-                    updateChatHeaderAvatar(data.from);
-                    socket.emit('get history', { withUser: currentRecipient, currentUser: currentUser });
-                    displayMessage(data.from, data.message, false, data.timestamp);
-                }
-            }
-        });
+    if (data.from === currentRecipient) {
+        displayMessage(data.from, data.message, false, data.timestamp);
+    } else {
+        if (confirm(`Новое сообщение от ${data.from}. Перейти в чат?`)) {
+            currentRecipient = data.from;
+            document.getElementById('recipient').value = data.from;
+            document.getElementById('current-chat-name').innerText = data.from;
+            document.getElementById('messages').innerHTML = '';
+            document.getElementById('chat-header').style.display = 'flex';
+            document.getElementById('chat-header-name').innerText = data.from;
+            updateChatHeaderAvatar(data.from);
+            socket.emit('get history', { withUser: currentRecipient, currentUser: currentUser });
+            displayMessage(data.from, data.message, false, data.timestamp);
+            loadUsers(); // Обновляем список контактов, так как появился новый собеседник
+        }
+    }
+});
 
         socket.on('message sent', (data) => {
-            if (data.to === currentRecipient) {
-                displayMessage(currentUser, data.message, true, data.timestamp);
-            }
-        });
+    if (data.to === currentRecipient) {
+        displayMessage(currentUser, data.message, true, data.timestamp);
+        loadUsers(); // Обновляем список контактов
+    }
+});
 
         socket.on('online users', (users) => {
             onlineUsers = users;

@@ -79,13 +79,34 @@ app.post('/login', async (req, res) => {
     }
 });
 
-// Получить список всех пользователей
+// Получить список пользователей, с которыми был диалог
 app.get('/users', async (req, res) => {
+    const currentUser = req.query.currentUser;
+    
+    if (!currentUser) {
+        return res.status(400).json({ error: 'currentUser required' });
+    }
+    
     try {
-        const result = await pool.query('SELECT username FROM users ORDER BY username');
-        res.json(result.rows);
+        // Находим всех пользователей, с которыми текущий пользователь обменивался сообщениями
+        const result = await pool.query(`
+            SELECT DISTINCT 
+                CASE 
+                    WHEN sender = $1 THEN recipient
+                    WHEN recipient = $1 THEN sender
+                END as username
+            FROM messages
+            WHERE sender = $1 OR recipient = $1
+        `, [currentUser]);
+        
+        // Фильтруем NULL значения и убираем самого себя
+        const contacts = result.rows
+            .map(row => row.username)
+            .filter(username => username && username !== currentUser);
+        
+        res.json(contacts);
     } catch (err) {
-        console.error('Ошибка получения пользователей:', err);
+        console.error('Ошибка получения контактов:', err);
         res.status(500).json({ error: 'Ошибка сервера' });
     }
 });
