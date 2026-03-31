@@ -5,6 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <!-- Emoji Picker -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/emoji-picker-element@1.21.0/index.css">
+    <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1.21.0/index.js"></script>
     <style>
         * {
             margin: 0;
@@ -114,6 +117,7 @@
             border-right: 1px solid #e9ecef;
             display: flex;
             flex-direction: column;
+            overflow-y: auto;
         }
         
         .sidebar-header {
@@ -188,9 +192,10 @@
             align-items: center;
             justify-content: center;
             font-weight: bold;
-            font-size: 18px;
+            font-size: 22px;
             color: white;
             flex-shrink: 0;
+            background: #667eea;
         }
         
         .user-info {
@@ -246,8 +251,8 @@
             align-items: center;
             justify-content: center;
             font-weight: bold;
-            font-size: 20px;
-            color: white;
+            font-size: 24px;
+            background: #667eea;
         }
         
         .chat-header-info h3 {
@@ -287,9 +292,9 @@
             align-items: center;
             justify-content: center;
             font-weight: bold;
-            font-size: 14px;
-            color: white;
+            font-size: 18px;
             flex-shrink: 0;
+            background: #667eea;
         }
         
         .message-content {
@@ -342,10 +347,15 @@
         .chat-input-form {
             display: flex;
             gap: 12px;
+            align-items: center;
+        }
+        
+        .input-wrapper {
+            flex: 1;
         }
         
         .chat-input-form input {
-            flex: 1;
+            width: 100%;
             padding: 14px;
             border: 2px solid #e9ecef;
             border-radius: 24px;
@@ -373,6 +383,37 @@
             background: #5a67d8;
         }
         
+        .emoji-button {
+            background: #f0f0f0;
+            border: none;
+            border-radius: 24px;
+            padding: 12px 16px;
+            cursor: pointer;
+            font-size: 20px;
+            transition: background 0.2s;
+        }
+        
+        .emoji-button:hover {
+            background: #e0e0e0;
+        }
+        
+        .emoji-picker {
+            position: absolute;
+            bottom: 80px;
+            left: 20px;
+            z-index: 1000;
+            display: none;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            width: 350px;
+            height: 400px;
+        }
+        
+        .emoji-picker.show {
+            display: block;
+        }
+        
         /* Скроллбар */
         .messages-area::-webkit-scrollbar,
         .users-section::-webkit-scrollbar {
@@ -388,6 +429,45 @@
         .users-section::-webkit-scrollbar-thumb {
             background: #c1c1c1;
             border-radius: 3px;
+        }
+        
+        .avatar-section {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        .avatar-section h4 {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+        
+        .avatar-selector {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        #current-avatar {
+            width: 48px;
+            height: 48px;
+            font-size: 28px;
+            background: #667eea;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+        }
+        
+        #change-avatar-btn {
+            flex: 1;
+            padding: 8px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
         }
     </style>
 </head>
@@ -413,12 +493,19 @@
                     <button onclick="setRecipient()">Начать чат</button>
                 </div>
                 <div class="users-section">
-                    <h4>👥 Все пользователи</h4>
+                    <h4>👥 Активные чаты</h4>
                     <div id="users-list">
                         <div style="text-align: center; color: #999; padding: 20px;">Загрузка...</div>
                     </div>
                 </div>
-                <div class="current-chat-info" id="current-chat-info">
+                <div class="avatar-section">
+                    <h4>🎨 Мой аватар</h4>
+                    <div class="avatar-selector">
+                        <div id="current-avatar" class="user-avatar" style="width: 48px; height: 48px; font-size: 28px;">😊</div>
+                        <button id="change-avatar-btn">Сменить эмодзи</button>
+                    </div>
+                </div>
+                <div class="current-chat-info">
                     <strong>Текущий чат:</strong> <span id="current-chat-name">не выбран</span>
                 </div>
             </div>
@@ -436,9 +523,13 @@
                 </div>
                 <div class="chat-input-area">
                     <form class="chat-input-form" onsubmit="sendMessage(event)">
-                        <input type="text" id="message-input" placeholder="Введите сообщение..." autocomplete="off">
+                        <button type="button" class="emoji-button" id="emoji-btn">😊</button>
+                        <div class="input-wrapper">
+                            <input type="text" id="message-input" placeholder="Введите сообщение..." autocomplete="off">
+                        </div>
                         <button type="submit">📤 Отправить</button>
                     </form>
+                    <div class="emoji-picker" id="emoji-picker"></div>
                 </div>
             </div>
         </div>
@@ -451,6 +542,9 @@
         let currentUser = null;
         let currentRecipient = null;
         let onlineUsers = [];
+        let unreadCount = 0;
+        let originalTitle = document.title;
+        let notificationPermission = false;
 
         async function register() {
             const username = document.getElementById('username').value.trim();
@@ -498,8 +592,22 @@
                 
                 socket.emit('join', currentUser);
                 loadUsers();
+                
+                // Загружаем аватарку текущего пользователя
+                loadCurrentAvatar();
+                
+                // Запрашиваем разрешение на уведомления
+                requestNotificationPermission();
             } else {
                 alert('Ошибка входа: неверный логин или пароль');
+            }
+        }
+        
+        async function loadCurrentAvatar() {
+            const emoji = await getUserAvatar(currentUser);
+            const avatarDiv = document.getElementById('current-avatar');
+            if (avatarDiv) {
+                avatarDiv.textContent = emoji;
             }
         }
 
@@ -513,17 +621,22 @@
                 document.getElementById('chat-header-name').innerText = currentRecipient;
                 updateChatHeaderAvatar(currentRecipient);
                 socket.emit('get history', { withUser: currentRecipient, currentUser: currentUser });
+                
+                unreadCount = 0;
+                updateUnreadCount();
             } else if (recip === currentUser) {
                 alert('Нельзя писать самому себе');
             }
         }
 
         function updateChatHeaderAvatar(username) {
-            const colors = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a'];
-            const index = username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
             const avatar = document.getElementById('chat-header-avatar');
-            avatar.style.backgroundColor = colors[index];
-            avatar.textContent = username.charAt(0).toUpperCase();
+            if (avatar && username) {
+                getUserAvatar(username).then(emoji => {
+                    avatar.textContent = emoji;
+                    avatar.style.backgroundColor = 'transparent';
+                });
+            }
         }
 
         function sendMessage(event) {
@@ -543,44 +656,65 @@
         }
 
         async function loadUsers() {
-    try {
-        // Передаем имя текущего пользователя в запрос
-        const response = await fetch(`/users?currentUser=${encodeURIComponent(currentUser)}`);
-        const users = await response.json();
-        const usersListDiv = document.getElementById('users-list');
-        
-        if (users.length === 0) {
-            usersListDiv.innerHTML = '<div style="text-align: center; color: #999; padding: 20px;">Нет активных чатов. Напишите кому-нибудь!</div>';
-            return;
+            try {
+                const response = await fetch(`/users?currentUser=${encodeURIComponent(currentUser)}`);
+                const users = await response.json();
+                const usersListDiv = document.getElementById('users-list');
+                
+                if (users.length === 0) {
+                    usersListDiv.innerHTML = '<div style="text-align: center; color: #999; padding: 20px;">Нет активных чатов. Напишите кому-нибудь!</div>';
+                    return;
+                }
+                
+                usersListDiv.innerHTML = users.map(user => {
+                    const isOnline = onlineUsers.includes(user);
+                    return `
+                        <div class="user-item" onclick="selectUser('${user}')">
+                            <div class="user-avatar" data-username="${user}">😊</div>
+                            <div class="user-info">
+                                <div class="user-name">${user}</div>
+                                <div class="user-status ${isOnline ? '' : 'offline'}">${isOnline ? '🟢 Онлайн' : '⚫ Офлайн'}</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                
+                // Загружаем реальные аватарки
+                for (const user of users) {
+                    const avatarDiv = document.querySelector(`.user-avatar[data-username="${user}"]`);
+                    if (avatarDiv) {
+                        const emoji = await getUserAvatar(user);
+                        avatarDiv.textContent = emoji;
+                        avatarDiv.style.backgroundColor = 'transparent';
+                    }
+                }
+            } catch (err) {
+                console.error('Ошибка загрузки контактов:', err);
+                document.getElementById('users-list').innerHTML = '<div style="text-align: center; color: #999; padding: 20px;">Ошибка загрузки</div>';
+            }
+        }
+
+        async function getUserAvatar(username) {
+            try {
+                const response = await fetch(`/avatar/${username}`);
+                const data = await response.json();
+                return data.emoji;
+            } catch (err) {
+                console.error('Ошибка загрузки аватарки:', err);
+                return '😊';
+            }
         }
         
-        const colors = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a'];
-        
-        usersListDiv.innerHTML = users.map(user => {
-            const colorIndex = user.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
-            const isOnline = onlineUsers.includes(user);
-            return `
-                <div class="user-item" onclick="selectUser('${user}')">
-                    <div class="user-avatar" style="background: ${colors[colorIndex]}">
-                        ${user.charAt(0).toUpperCase()}
-                    </div>
-                    <div class="user-info">
-                        <div class="user-name">${user}</div>
-                        <div class="user-status ${isOnline ? '' : 'offline'}">${isOnline ? '🟢 Онлайн' : '⚫ Офлайн'}</div>
-                    </div>
-                </div>
-            `;
-        }).join('');
-    } catch (err) {
-        console.error('Ошибка загрузки контактов:', err);
-        document.getElementById('users-list').innerHTML = '<div style="text-align: center; color: #999; padding: 20px;">Ошибка загрузки</div>';
-    }
-}
-
-        function getAvatarColor(username) {
-            const colors = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a'];
-            const index = username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
-            return colors[index];
+        async function setUserAvatar(emoji) {
+            try {
+                await fetch('/avatar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: currentUser, emoji })
+                });
+            } catch (err) {
+                console.error('Ошибка сохранения аватарки:', err);
+            }
         }
 
         function selectUser(username) {
@@ -599,6 +733,47 @@
                 document.getElementById('chat-header-status').innerHTML = statusText;
             }
         }
+        
+        function requestNotificationPermission() {
+            if ('Notification' in window) {
+                Notification.requestPermission().then(permission => {
+                    notificationPermission = permission === 'granted';
+                });
+            }
+        }
+        
+        function showNotification(sender, message) {
+            if (!notificationPermission) return;
+            if (document.hasFocus() && document.getElementById('current-chat-name').innerText === sender) {
+                return;
+            }
+            
+            const notification = new Notification(`📩 Новое сообщение от ${sender}`, {
+                body: message.length > 50 ? message.slice(0, 50) + '...' : message,
+                icon: 'https://cdn-icons-png.flaticon.com/512/134/134914.png',
+                silent: false
+            });
+            
+            notification.onclick = () => {
+                window.focus();
+                if (sender !== currentUser) {
+                    selectUser(sender);
+                }
+                notification.close();
+            };
+            
+            const audio = new Audio('https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3');
+            audio.volume = 0.3;
+            audio.play().catch(e => console.log('Звук не воспроизведен:', e));
+        }
+        
+        function updateUnreadCount() {
+            if (unreadCount > 0) {
+                document.title = `(${unreadCount}) ${originalTitle}`;
+            } else {
+                document.title = originalTitle;
+            }
+        }
 
         socket.on('message history', (data) => {
             const messagesDiv = document.getElementById('messages');
@@ -612,40 +787,49 @@
         });
 
         socket.on('private message', (data) => {
-    if (data.from === currentRecipient) {
-        displayMessage(data.from, data.message, false, data.timestamp);
-    } else {
-        if (confirm(`Новое сообщение от ${data.from}. Перейти в чат?`)) {
-            currentRecipient = data.from;
-            document.getElementById('recipient').value = data.from;
-            document.getElementById('current-chat-name').innerText = data.from;
-            document.getElementById('messages').innerHTML = '';
-            document.getElementById('chat-header').style.display = 'flex';
-            document.getElementById('chat-header-name').innerText = data.from;
-            updateChatHeaderAvatar(data.from);
-            socket.emit('get history', { withUser: currentRecipient, currentUser: currentUser });
-            displayMessage(data.from, data.message, false, data.timestamp);
-            loadUsers(); // Обновляем список контактов, так как появился новый собеседник
-        }
-    }
-});
+            if (data.from === currentRecipient) {
+                displayMessage(data.from, data.message, false, data.timestamp);
+                unreadCount = 0;
+                updateUnreadCount();
+            } else {
+                unreadCount++;
+                updateUnreadCount();
+                showNotification(data.from, data.message);
+                
+                if (confirm(`Новое сообщение от ${data.from}. Перейти в чат?`)) {
+                    unreadCount = 0;
+                    updateUnreadCount();
+                    currentRecipient = data.from;
+                    document.getElementById('recipient').value = data.from;
+                    document.getElementById('current-chat-name').innerText = data.from;
+                    document.getElementById('messages').innerHTML = '';
+                    document.getElementById('chat-header').style.display = 'flex';
+                    document.getElementById('chat-header-name').innerText = data.from;
+                    updateChatHeaderAvatar(data.from);
+                    socket.emit('get history', { withUser: currentRecipient, currentUser: currentUser });
+                    displayMessage(data.from, data.message, false, data.timestamp);
+                    loadUsers();
+                }
+            }
+        });
 
         socket.on('message sent', (data) => {
-    if (data.to === currentRecipient) {
-        displayMessage(currentUser, data.message, true, data.timestamp);
-        loadUsers(); // Обновляем список контактов
-    }
-});
+            if (data.to === currentRecipient) {
+                displayMessage(currentUser, data.message, true, data.timestamp);
+                loadUsers();
+                unreadCount = 0;
+                updateUnreadCount();
+            }
+        });
 
         socket.on('online users', (users) => {
             onlineUsers = users;
             updateOnlineStatus();
         });
 
-        function displayMessage(sender, text, isMe, timestamp = null) {
+        async function displayMessage(sender, text, isMe, timestamp = null) {
             const messagesDiv = document.getElementById('messages');
             
-            // Убираем заглушку если есть
             if (messagesDiv.children.length === 1 && messagesDiv.children[0].textContent.includes('Нет сообщений')) {
                 messagesDiv.innerHTML = '';
             }
@@ -663,15 +847,16 @@
                 timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             }
             
-            const colors = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a'];
-            const colorIndex = sender.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
-            const avatarColor = colors[colorIndex];
-            const firstLetter = sender.charAt(0).toUpperCase();
+            const avatarEmoji = await getUserAvatar(sender);
             
             const avatar = document.createElement('div');
             avatar.className = 'message-avatar';
-            avatar.style.backgroundColor = avatarColor;
-            avatar.textContent = firstLetter;
+            avatar.style.backgroundColor = '#667eea';
+            avatar.style.display = 'flex';
+            avatar.style.alignItems = 'center';
+            avatar.style.justifyContent = 'center';
+            avatar.style.fontSize = '18px';
+            avatar.textContent = avatarEmoji;
             
             const messageContent = document.createElement('div');
             messageContent.className = 'message-content';
@@ -705,6 +890,91 @@
             messagesDiv.appendChild(messageWrapper);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
+        
+        // Смайлики
+        let emojiPicker = null;
+        
+        function initEmojiPicker() {
+            const pickerElement = document.getElementById('emoji-picker');
+            const emojiBtn = document.getElementById('emoji-btn');
+            
+            if (window.EmojiPicker) {
+                emojiPicker = new window.EmojiPicker({
+                    dataSource: 'https://cdn.jsdelivr.net/npm/emoji-picker-element-data@1.2.0/emojibase/data.json',
+                    locale: 'ru'
+                });
+                pickerElement.appendChild(emojiPicker);
+                
+                emojiPicker.addEventListener('emoji-click', (event) => {
+                    const emoji = event.detail.unicode;
+                    const input = document.getElementById('message-input');
+                    input.value += emoji;
+                    input.focus();
+                    pickerElement.classList.remove('show');
+                });
+            }
+            
+            emojiBtn.addEventListener('click', () => {
+                pickerElement.classList.toggle('show');
+            });
+            
+            document.addEventListener('click', (e) => {
+                if (!pickerElement.contains(e.target) && e.target !== emojiBtn) {
+                    pickerElement.classList.remove('show');
+                }
+            });
+        }
+        
+        // Выбор аватарки
+        let avatarPicker = null;
+        
+        function initAvatarPicker() {
+            const avatarBtn = document.getElementById('change-avatar-btn');
+            const avatarContainer = document.getElementById('current-avatar');
+            
+            if (window.EmojiPicker && !avatarPicker) {
+                avatarPicker = new window.EmojiPicker({
+                    dataSource: 'https://cdn.jsdelivr.net/npm/emoji-picker-element-data@1.2.0/emojibase/data.json',
+                    locale: 'ru'
+                });
+                
+                avatarPicker.style.position = 'absolute';
+                avatarPicker.style.top = '50%';
+                avatarPicker.style.left = '50%';
+                avatarPicker.style.transform = 'translate(-50%, -50%)';
+                avatarPicker.style.zIndex = '1001';
+                avatarPicker.style.display = 'none';
+                document.body.appendChild(avatarPicker);
+                
+                avatarPicker.addEventListener('emoji-click', async (event) => {
+                    const emoji = event.detail.unicode;
+                    await setUserAvatar(emoji);
+                    avatarContainer.textContent = emoji;
+                    avatarPicker.style.display = 'none';
+                    loadUsers();
+                    if (currentRecipient) {
+                        updateChatHeaderAvatar(currentRecipient);
+                    }
+                });
+            }
+            
+            avatarBtn.addEventListener('click', () => {
+                if (avatarPicker) {
+                    avatarPicker.style.display = avatarPicker.style.display === 'none' ? 'block' : 'none';
+                }
+            });
+            
+            document.addEventListener('click', (e) => {
+                if (avatarPicker && !avatarPicker.contains(e.target) && e.target !== avatarBtn) {
+                    avatarPicker.style.display = 'none';
+                }
+            });
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            initEmojiPicker();
+            initAvatarPicker();
+        });
     </script>
 </body>
 </html>
