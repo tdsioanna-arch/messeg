@@ -5,9 +5,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-    <!-- Emoji Picker -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/emoji-picker-element@1.21.0/index.css">
-    <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1.21.0/index.js"></script>
     <style>
         * {
             margin: 0;
@@ -193,7 +190,6 @@
             justify-content: center;
             font-weight: bold;
             font-size: 22px;
-            color: white;
             flex-shrink: 0;
             background: #667eea;
         }
@@ -397,44 +393,52 @@
             background: #e0e0e0;
         }
         
+        /* Панель смайликов */
         .emoji-picker {
             position: absolute;
-            bottom: 80px;
+            bottom: 70px;
             left: 20px;
             z-index: 1000;
             display: none;
             background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-            width: 350px;
-            height: 400px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            width: 320px;
+            padding: 12px;
+            background: #fff;
+            border: 1px solid #e0e0e0;
         }
         
         .emoji-picker.show {
             display: block;
         }
         
-        /* Скроллбар */
-        .messages-area::-webkit-scrollbar,
-        .users-section::-webkit-scrollbar {
-            width: 6px;
+        .emoji-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 8px;
+            max-height: 280px;
+            overflow-y: auto;
         }
         
-        .messages-area::-webkit-scrollbar-track,
-        .users-section::-webkit-scrollbar-track {
-            background: #f1f1f1;
+        .emoji-item {
+            font-size: 24px;
+            cursor: pointer;
+            text-align: center;
+            padding: 8px;
+            border-radius: 8px;
+            transition: background 0.2s;
         }
         
-        .messages-area::-webkit-scrollbar-thumb,
-        .users-section::-webkit-scrollbar-thumb {
-            background: #c1c1c1;
-            border-radius: 3px;
+        .emoji-item:hover {
+            background: #f0f0f0;
         }
         
         .avatar-section {
             margin-top: 20px;
-            padding-top: 15px;
+            padding: 15px;
             border-top: 1px solid #e0e0e0;
+            background: #f8f9fa;
         }
         
         .avatar-section h4 {
@@ -462,12 +466,87 @@
         
         #change-avatar-btn {
             flex: 1;
-            padding: 8px;
+            padding: 10px;
             background: #667eea;
             color: white;
             border: none;
             border-radius: 8px;
             cursor: pointer;
+        }
+        
+        /* Модальное окно выбора аватарки */
+        .avatar-picker {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2000;
+            display: none;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            width: 400px;
+            max-width: 90%;
+            padding: 20px;
+        }
+        
+        .avatar-picker.show {
+            display: block;
+        }
+        
+        .avatar-picker h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        .avatar-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+        }
+        
+        .avatar-option {
+            font-size: 32px;
+            cursor: pointer;
+            text-align: center;
+            padding: 10px;
+            border-radius: 12px;
+            transition: background 0.2s;
+        }
+        
+        .avatar-option:hover {
+            background: #f0f0f0;
+            transform: scale(1.1);
+        }
+        
+        .close-avatar-picker {
+            width: 100%;
+            padding: 10px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        
+        /* Скроллбар */
+        .messages-area::-webkit-scrollbar,
+        .users-section::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .messages-area::-webkit-scrollbar-track,
+        .users-section::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        
+        .messages-area::-webkit-scrollbar-thumb,
+        .users-section::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
         }
     </style>
 </head>
@@ -529,10 +608,19 @@
                         </div>
                         <button type="submit">📤 Отправить</button>
                     </form>
-                    <div class="emoji-picker" id="emoji-picker"></div>
+                    <div class="emoji-picker" id="emoji-picker">
+                        <div class="emoji-grid" id="emoji-grid"></div>
+                    </div>
                 </div>
             </div>
         </div>
+    </div>
+    
+    <!-- Модальное окно выбора аватарки -->
+    <div id="avatar-picker-modal" class="avatar-picker">
+        <h3>Выберите эмодзи для аватарки</h3>
+        <div id="avatar-grid" class="avatar-grid"></div>
+        <button class="close-avatar-picker" id="close-avatar-picker">Закрыть</button>
     </div>
 
     <script>
@@ -545,6 +633,29 @@
         let unreadCount = 0;
         let originalTitle = document.title;
         let notificationPermission = false;
+
+        // Список популярных эмодзи
+        const commonEmojis = [
+            '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣',
+            '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰',
+            '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜',
+            '🤪', '🤨', '🧐', '🤓', '😎', '🤩', '🥳', '😏',
+            '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😣',
+            '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠',
+            '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '😨',
+            '😰', '😥', '😓', '🤗', '🤔', '🤭', '🤫', '🤥',
+            '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧',
+            '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐',
+            '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑',
+            '🤠', '😈', '👿', '👹', '👺', '🤡', '💩', '👻',
+            '💀', '☠️', '👽', '👾', '🤖', '🎃', '😺', '😸',
+            '😹', '😻', '😼', '😽', '🙀', '😿', '😾', '🙈',
+            '🙉', '🙊', '💋', '💌', '💘', '💝', '💖', '💗',
+            '💓', '💞', '💕', '💟', '❣️', '💔', '❤️', '🧡',
+            '💛', '💚', '💙', '💜', '🤎', '🖤', '🤍', '💯',
+            '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼',
+            '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🙈'
+        ];
 
         async function register() {
             const username = document.getElementById('username').value.trim();
@@ -592,11 +703,7 @@
                 
                 socket.emit('join', currentUser);
                 loadUsers();
-                
-                // Загружаем аватарку текущего пользователя
                 loadCurrentAvatar();
-                
-                // Запрашиваем разрешение на уведомления
                 requestNotificationPermission();
             } else {
                 alert('Ошибка входа: неверный логин или пароль');
@@ -621,7 +728,6 @@
                 document.getElementById('chat-header-name').innerText = currentRecipient;
                 updateChatHeaderAvatar(currentRecipient);
                 socket.emit('get history', { withUser: currentRecipient, currentUser: currentUser });
-                
                 unreadCount = 0;
                 updateUnreadCount();
             } else if (recip === currentUser) {
@@ -629,13 +735,12 @@
             }
         }
 
-        function updateChatHeaderAvatar(username) {
+        async function updateChatHeaderAvatar(username) {
             const avatar = document.getElementById('chat-header-avatar');
             if (avatar && username) {
-                getUserAvatar(username).then(emoji => {
-                    avatar.textContent = emoji;
-                    avatar.style.backgroundColor = 'transparent';
-                });
+                const emoji = await getUserAvatar(username);
+                avatar.textContent = emoji;
+                avatar.style.backgroundColor = 'transparent';
             }
         }
 
@@ -679,7 +784,6 @@
                     `;
                 }).join('');
                 
-                // Загружаем реальные аватарки
                 for (const user of users) {
                     const avatarDiv = document.querySelector(`.user-avatar[data-username="${user}"]`);
                     if (avatarDiv) {
@@ -891,86 +995,80 @@
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
         
-        // Смайлики
-        let emojiPicker = null;
-        
+        // Инициализация панели смайликов
         function initEmojiPicker() {
-            const pickerElement = document.getElementById('emoji-picker');
+            const picker = document.getElementById('emoji-picker');
             const emojiBtn = document.getElementById('emoji-btn');
+            const emojiGrid = document.getElementById('emoji-grid');
             
-            if (window.EmojiPicker) {
-                emojiPicker = new window.EmojiPicker({
-                    dataSource: 'https://cdn.jsdelivr.net/npm/emoji-picker-element-data@1.2.0/emojibase/data.json',
-                    locale: 'ru'
-                });
-                pickerElement.appendChild(emojiPicker);
-                
-                emojiPicker.addEventListener('emoji-click', (event) => {
-                    const emoji = event.detail.unicode;
+            emojiGrid.innerHTML = commonEmojis.map(emoji => 
+                `<div class="emoji-item">${emoji}</div>`
+            ).join('');
+            
+            document.querySelectorAll('.emoji-item').forEach(el => {
+                el.addEventListener('click', () => {
                     const input = document.getElementById('message-input');
-                    input.value += emoji;
+                    input.value += el.textContent;
                     input.focus();
-                    pickerElement.classList.remove('show');
+                    picker.classList.remove('show');
                 });
-            }
+            });
             
-            emojiBtn.addEventListener('click', () => {
-                pickerElement.classList.toggle('show');
+            emojiBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                picker.classList.toggle('show');
             });
             
             document.addEventListener('click', (e) => {
-                if (!pickerElement.contains(e.target) && e.target !== emojiBtn) {
-                    pickerElement.classList.remove('show');
+                if (!picker.contains(e.target) && e.target !== emojiBtn) {
+                    picker.classList.remove('show');
                 }
             });
         }
         
-        // Выбор аватарки
-        let avatarPicker = null;
-        
+        // Инициализация выбора аватарки
         function initAvatarPicker() {
             const avatarBtn = document.getElementById('change-avatar-btn');
-            const avatarContainer = document.getElementById('current-avatar');
+            const avatarModal = document.getElementById('avatar-picker-modal');
+            const avatarGrid = document.getElementById('avatar-grid');
+            const closeBtn = document.getElementById('close-avatar-picker');
+            const currentAvatarDiv = document.getElementById('current-avatar');
             
-            if (window.EmojiPicker && !avatarPicker) {
-                avatarPicker = new window.EmojiPicker({
-                    dataSource: 'https://cdn.jsdelivr.net/npm/emoji-picker-element-data@1.2.0/emojibase/data.json',
-                    locale: 'ru'
-                });
-                
-                avatarPicker.style.position = 'absolute';
-                avatarPicker.style.top = '50%';
-                avatarPicker.style.left = '50%';
-                avatarPicker.style.transform = 'translate(-50%, -50%)';
-                avatarPicker.style.zIndex = '1001';
-                avatarPicker.style.display = 'none';
-                document.body.appendChild(avatarPicker);
-                
-                avatarPicker.addEventListener('emoji-click', async (event) => {
-                    const emoji = event.detail.unicode;
+            avatarGrid.innerHTML = commonEmojis.map(emoji => 
+                `<div class="avatar-option">${emoji}</div>`
+            ).join('');
+            
+            document.querySelectorAll('.avatar-option').forEach(el => {
+                el.addEventListener('click', async () => {
+                    const emoji = el.textContent;
                     await setUserAvatar(emoji);
-                    avatarContainer.textContent = emoji;
-                    avatarPicker.style.display = 'none';
+                    currentAvatarDiv.textContent = emoji;
+                    avatarModal.classList.remove('show');
                     loadUsers();
                     if (currentRecipient) {
                         updateChatHeaderAvatar(currentRecipient);
                     }
                 });
-            }
+            });
             
             avatarBtn.addEventListener('click', () => {
-                if (avatarPicker) {
-                    avatarPicker.style.display = avatarPicker.style.display === 'none' ? 'block' : 'none';
-                }
+                avatarModal.classList.add('show');
+            });
+            
+            closeBtn.addEventListener('click', () => {
+                avatarModal.classList.remove('show');
             });
             
             document.addEventListener('click', (e) => {
-                if (avatarPicker && !avatarPicker.contains(e.target) && e.target !== avatarBtn) {
-                    avatarPicker.style.display = 'none';
+                if (avatarModal.classList.contains('show') && 
+                    !avatarModal.contains(e.target) && 
+                    e.target !== avatarBtn) {
+                    avatarModal.classList.remove('show');
                 }
             });
         }
         
+        // Инициализация при загрузке
         document.addEventListener('DOMContentLoaded', () => {
             initEmojiPicker();
             initAvatarPicker();
