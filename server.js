@@ -45,6 +45,12 @@ async function initDb() {
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS user_avatars (
+                username TEXT PRIMARY KEY,
+                emoji TEXT DEFAULT '😊'
+            )
+        `);
         console.log('База данных PostgreSQL готова');
     } catch (err) {
         console.error('Ошибка инициализации БД:', err);
@@ -58,12 +64,13 @@ app.post('/register', async (req, res) => {
     const { username, password } = req.body;
     try {
         await pool.query('INSERT INTO users (username, password) VALUES ($1, $2)', [username, password]);
+        // Добавляем аватарку по умолчанию
+        await pool.query('INSERT INTO user_avatars (username, emoji) VALUES ($1, $2) ON CONFLICT (username) DO NOTHING', [username, '😊']);
         res.json({ success: true });
     } catch (err) {
         res.status(400).json({ error: 'Пользователь уже существует' });
     }
 });
-
 // Вход
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
@@ -151,18 +158,18 @@ io.on('connection', (socket) => {
     });
 
     socket.on('get history', async ({ withUser, currentUser }) => {
-        try {
-            const result = await pool.query(
-                `SELECT * FROM messages 
-                 WHERE (sender = $1 AND recipient = $2) OR (sender = $2 AND recipient = $1) 
-                 ORDER BY timestamp ASC`,
-                [currentUser, withUser]
-            );
-            socket.emit('message history', { with: withUser, messages: result.rows });
-        } catch (err) {
-            console.error('Ошибка получения истории:', err);
-        }
-    });
+    try {
+        const result = await pool.query(
+            `SELECT * FROM messages 
+             WHERE (sender = $1 AND recipient = $2) OR (sender = $2 AND recipient = $1) 
+             ORDER BY timestamp ASC`,
+            [currentUser, withUser]
+        );
+        socket.emit('message history', { with: withUser, messages: result.rows });
+    } catch (err) {
+        console.error('Ошибка получения истории:', err);
+    }
+});
 
     socket.on('disconnect', () => {
         console.log('Пользователь отключился');

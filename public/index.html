@@ -3,8 +3,13 @@
 <head>
     <title>Мой Мессенджер</title>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Messenger">
+    <meta name="theme-color" content="#667eea">
     <style>
         * {
             margin: 0;
@@ -33,7 +38,6 @@
             display: flex;
         }
         
-        /* Форма входа */
         .login-container {
             flex: 1;
             display: flex;
@@ -100,14 +104,12 @@
             background: #38a169;
         }
         
-        /* Чат */
         .chat-container {
             display: flex;
             width: 100%;
             height: 100%;
         }
         
-        /* Боковая панель */
         .sidebar {
             width: 320px;
             background: #f8f9fa;
@@ -222,7 +224,6 @@
             font-size: 14px;
         }
         
-        /* Основная область чата */
         .chat-main {
             flex: 1;
             display: flex;
@@ -393,7 +394,6 @@
             background: #e0e0e0;
         }
         
-        /* Панель смайликов */
         .emoji-picker {
             position: absolute;
             bottom: 70px;
@@ -474,7 +474,22 @@
             cursor: pointer;
         }
         
-        /* Модальное окно выбора аватарки */
+        #logout-btn {
+            width: 100%;
+            margin-top: 15px;
+            padding: 10px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        
+        #logout-btn:hover {
+            background: #c82333;
+        }
+        
         .avatar-picker {
             position: fixed;
             top: 50%;
@@ -532,7 +547,6 @@
             cursor: pointer;
         }
         
-        /* Скроллбар */
         .messages-area::-webkit-scrollbar,
         .users-section::-webkit-scrollbar {
             width: 6px;
@@ -552,7 +566,6 @@
 </head>
 <body>
     <div class="app-container">
-        <!-- Форма входа -->
         <div id="login-section" class="login-container">
             <div class="login-box">
                 <h2>💬 Мессенджер</h2>
@@ -563,7 +576,6 @@
             </div>
         </div>
 
-        <!-- Чат -->
         <div id="chat-section" class="chat-container" style="display: none;">
             <div class="sidebar">
                 <div class="sidebar-header">
@@ -583,6 +595,7 @@
                         <div id="current-avatar" class="user-avatar" style="width: 48px; height: 48px; font-size: 28px;">😊</div>
                         <button id="change-avatar-btn">Сменить эмодзи</button>
                     </div>
+                    <button id="logout-btn">🚪 Выйти</button>
                 </div>
                 <div class="current-chat-info">
                     <strong>Текущий чат:</strong> <span id="current-chat-name">не выбран</span>
@@ -616,7 +629,6 @@
         </div>
     </div>
     
-    <!-- Модальное окно выбора аватарки -->
     <div id="avatar-picker-modal" class="avatar-picker">
         <h3>Выберите эмодзи для аватарки</h3>
         <div id="avatar-grid" class="avatar-grid"></div>
@@ -634,7 +646,6 @@
         let originalTitle = document.title;
         let notificationPermission = false;
 
-        // Список популярных эмодзи
         const commonEmojis = [
             '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣',
             '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰',
@@ -697,6 +708,9 @@
             const data = await response.json();
             
             if (data.success) {
+                localStorage.setItem('messenger_user', username);
+                localStorage.setItem('messenger_pass', password);
+                
                 currentUser = username;
                 document.getElementById('login-section').style.display = 'none';
                 document.getElementById('chat-section').style.display = 'flex';
@@ -708,6 +722,15 @@
             } else {
                 alert('Ошибка входа: неверный логин или пароль');
             }
+        }
+        
+        function logout() {
+            localStorage.removeItem('messenger_user');
+            localStorage.removeItem('messenger_pass');
+            if (socket) {
+                socket.disconnect();
+            }
+            location.reload();
         }
         
         async function loadCurrentAvatar() {
@@ -995,7 +1018,6 @@
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
         
-        // Инициализация панели смайликов
         function initEmojiPicker() {
             const picker = document.getElementById('emoji-picker');
             const emojiBtn = document.getElementById('emoji-btn');
@@ -1026,7 +1048,6 @@
             });
         }
         
-        // Инициализация выбора аватарки
         function initAvatarPicker() {
             const avatarBtn = document.getElementById('change-avatar-btn');
             const avatarModal = document.getElementById('avatar-picker-modal');
@@ -1068,11 +1089,33 @@
             });
         }
         
-        // Инициализация при загрузке
+        async function autoLogin() {
+            const savedUser = localStorage.getItem('messenger_user');
+            const savedPass = localStorage.getItem('messenger_pass');
+            
+            if (savedUser && savedPass) {
+                document.getElementById('username').value = savedUser;
+                document.getElementById('password').value = savedPass;
+                await login();
+            }
+        }
+        
         document.addEventListener('DOMContentLoaded', () => {
             initEmojiPicker();
             initAvatarPicker();
+            autoLogin();
+            
+            const logoutBtn = document.getElementById('logout-btn');
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', logout);
+            }
         });
+        
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js')
+                .then(reg => console.log('Service Worker зарегистрирован', reg))
+                .catch(err => console.log('Ошибка регистрации Service Worker', err));
+        }
     </script>
 </body>
 </html>
