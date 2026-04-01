@@ -71,6 +71,7 @@ app.post('/register', async (req, res) => {
         res.status(400).json({ error: 'Пользователь уже существует' });
     }
 });
+
 // Вход
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
@@ -95,7 +96,6 @@ app.get('/users', async (req, res) => {
     }
     
     try {
-        // Находим всех пользователей, с которыми текущий пользователь обменивался сообщениями
         const result = await pool.query(`
             SELECT DISTINCT 
                 CASE 
@@ -106,7 +106,6 @@ app.get('/users', async (req, res) => {
             WHERE sender = $1 OR recipient = $1
         `, [currentUser]);
         
-        // Фильтруем NULL значения и убираем самого себя
         const contacts = result.rows
             .map(row => row.username)
             .filter(username => username && username !== currentUser);
@@ -114,6 +113,37 @@ app.get('/users', async (req, res) => {
         res.json(contacts);
     } catch (err) {
         console.error('Ошибка получения контактов:', err);
+        res.status(500).json({ error: 'Ошибка сервера' });
+    }
+});
+
+// Получить эмодзи аватарки пользователя
+app.get('/avatar/:username', async (req, res) => {
+    const { username } = req.params;
+    try {
+        const result = await pool.query('SELECT emoji FROM user_avatars WHERE username = $1', [username]);
+        if (result.rows.length > 0) {
+            res.json({ emoji: result.rows[0].emoji });
+        } else {
+            res.json({ emoji: '😊' });
+        }
+    } catch (err) {
+        console.error('Ошибка получения аватарки:', err);
+        res.status(500).json({ error: 'Ошибка сервера' });
+    }
+});
+
+// Сохранить эмодзи аватарки пользователя
+app.post('/avatar', async (req, res) => {
+    const { username, emoji } = req.body;
+    try {
+        await pool.query(
+            'INSERT INTO user_avatars (username, emoji) VALUES ($1, $2) ON CONFLICT (username) DO UPDATE SET emoji = $2',
+            [username, emoji]
+        );
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Ошибка сохранения аватарки:', err);
         res.status(500).json({ error: 'Ошибка сервера' });
     }
 });
@@ -158,18 +188,18 @@ io.on('connection', (socket) => {
     });
 
     socket.on('get history', async ({ withUser, currentUser }) => {
-    try {
-        const result = await pool.query(
-            `SELECT * FROM messages 
-             WHERE (sender = $1 AND recipient = $2) OR (sender = $2 AND recipient = $1) 
-             ORDER BY timestamp ASC`,
-            [currentUser, withUser]
-        );
-        socket.emit('message history', { with: withUser, messages: result.rows });
-    } catch (err) {
-        console.error('Ошибка получения истории:', err);
-    }
-});
+        try {
+            const result = await pool.query(
+                `SELECT * FROM messages 
+                 WHERE (sender = $1 AND recipient = $2) OR (sender = $2 AND recipient = $1) 
+                 ORDER BY timestamp ASC`,
+                [currentUser, withUser]
+            );
+            socket.emit('message history', { with: withUser, messages: result.rows });
+        } catch (err) {
+            console.error('Ошибка получения истории:', err);
+        }
+    });
 
     socket.on('disconnect', () => {
         console.log('Пользователь отключился');

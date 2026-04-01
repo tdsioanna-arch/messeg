@@ -562,9 +562,86 @@
             background: #c1c1c1;
             border-radius: 3px;
         }
+        /* Адаптивность для телефонов */
+        @media (max-width: 768px) {
+            body {
+                padding: 0;
+            }
+            
+            .app-container {
+                height: 100vh;
+                border-radius: 0;
+            }
+            
+            .sidebar {
+                width: 280px;
+                position: fixed;
+                left: -280px;
+                top: 0;
+                height: 100%;
+                z-index: 1000;
+                transition: left 0.3s ease;
+                background: #f8f9fa;
+                box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            }
+            
+            .sidebar.open {
+                left: 0;
+            }
+            
+            .chat-main {
+                width: 100%;
+            }
+            
+            .menu-toggle {
+                position: fixed;
+                top: 15px;
+                left: 15px;
+                z-index: 1001;
+                background: #667eea;
+                color: white;
+                border: none;
+                border-radius: 50%;
+                width: 44px;
+                height: 44px;
+                font-size: 24px;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            }
+            
+            .chat-header {
+                padding-left: 70px;
+            }
+            
+            .message-content {
+                max-width: 85%;
+            }
+            
+            .emoji-picker {
+                width: 280px;
+                left: 10px;
+                bottom: 70px;
+            }
+            
+            .avatar-picker {
+                width: 95%;
+            }
+            
+            .avatar-grid {
+                grid-template-columns: repeat(6, 1fr);
+            }
+            
+            .emoji-grid {
+                grid-template-columns: repeat(6, 1fr);
+            }
+        }
     </style>
 </head>
 <body>
+    <button class="menu-toggle" id="menu-toggle" style="display: none;">☰</button>
     <div class="app-container">
         <div id="login-section" class="login-container">
             <div class="login-box">
@@ -636,6 +713,46 @@
     </div>
 
     <script>
+        // Мобильное меню
+        function initMobileMenu() {
+            const menuToggle = document.getElementById('menu-toggle');
+            const sidebar = document.querySelector('.sidebar');
+            
+            if (window.innerWidth <= 768) {
+                menuToggle.style.display = 'flex';
+                sidebar.classList.remove('open');
+            } else {
+                menuToggle.style.display = 'none';
+                sidebar.classList.add('open');
+            }
+            
+            menuToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('open');
+            });
+            
+            // Закрываем меню при клике на чат (на телефоне)
+            const chatMain = document.querySelector('.chat-main');
+            if (chatMain) {
+                chatMain.addEventListener('click', () => {
+                    if (window.innerWidth <= 768) {
+                        sidebar.classList.remove('open');
+                    }
+                });
+            }
+        }
+        
+        // Следим за изменением размера окна
+        window.addEventListener('resize', () => {
+            const menuToggle = document.getElementById('menu-toggle');
+            const sidebar = document.querySelector('.sidebar');
+            if (window.innerWidth <= 768) {
+                menuToggle.style.display = 'flex';
+                sidebar.classList.remove('open');
+            } else {
+                menuToggle.style.display = 'none';
+                sidebar.classList.add('open');
+            }
+        });
         const serverUrl = window.location.origin;
         const socket = io(serverUrl);
         
@@ -1100,10 +1217,11 @@
             }
         }
         
-        document.addEventListener('DOMContentLoaded', () => {
+                document.addEventListener('DOMContentLoaded', () => {
             initEmojiPicker();
             initAvatarPicker();
             autoLogin();
+            initMobileMenu();
             
             const logoutBtn = document.getElementById('logout-btn');
             if (logoutBtn) {
